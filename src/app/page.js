@@ -1,68 +1,339 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+const priorityNames = {
+  1: "Low",
+  2: "Medium",
+  3: "High",
+  4: "Critical",
+  5: "Emergency",
+};
+
+const priorityStyles = {
+  1: "bg-emerald-100 text-emerald-700",
+  2: "bg-yellow-100 text-yellow-700",
+  3: "bg-orange-100 text-orange-700",
+  4: "bg-red-100 text-red-700",
+  5: "bg-purple-100 text-purple-700",
+};
 
 export default function Home() {
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const response = await fetch("/api/dashboard");
+        const data = await response.json();
+
+        if (data.success) {
+          setDashboardData(data);
+        }
+      } catch (error) {
+        console.error("Could not fetch dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboard();
+  }, []);
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+        <p className="text-slate-500">Loading dashboard...</p>
+      </main>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+        <p className="text-red-500">Could not load dashboard data.</p>
+      </main>
+    );
+  }
+
+  const { statistics, recentIssues, resources } = dashboardData;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.js
-            </code>{" "}
-            file.
+    <div className="min-h-screen bg-slate-100 text-slate-800 md:flex">
+      {/* Sidebar */}
+      <aside className="w-full bg-slate-950 p-6 text-white md:min-h-screen md:w-64">
+        <div className="mb-10">
+          <h1 className="text-xl font-bold tracking-wide">
+            Civic<span className="text-emerald-400">Flow.</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-1 text-xs text-slate-400">
+            SMART URBAN MANAGEMENT
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <p className="mb-3 text-xs font-semibold uppercase text-slate-500">
+          Main Menu
+        </p>
+
+        <nav className="space-y-2">
+          {[
+            { icon: "▦", name: "Dashboard", href: "/" },
+            { icon: "◎", name: "Civic Issues", href: "/issues" },
+            { icon: "♙", name: "Departments", href: "/departments" },
+            { icon: "▤", name: "Resources", href: "/resources" },
+            { icon: "↗", name: "Allocations", href: "/allocations" },
+            { icon: "⌕", name: "Find Similar Issues", href: "/similar-issues" },
+            
+          ].map((item, index) => (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm ${
+                index === 0
+                  ? "bg-emerald-500 text-white"
+                  : "text-slate-300 hover:bg-slate-800"
+              }`}
+            >
+              <span>{item.icon}</span>
+              {item.name}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="mt-12 rounded-xl border border-slate-700 p-4">
+          <p className="text-sm font-semibold">System Status</p>
+          <p className="mt-2 text-xs text-emerald-400">
+            ● All systems operational
+          </p>
         </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="min-w-0 flex-1 p-5 md:p-8">
+        {/* Header */}
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-slate-500">
+              Overview / Dashboard
+            </p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">
+              Civic Dashboard
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Monitor urban issues and manage city resources.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/issues"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50"
+            >
+              Manage Issues
+            </Link>
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
+              A
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold">Administrator</p>
+              <p className="text-xs text-slate-500">Admin Account</p>
+            </div>
+          </div>
+        </header>
+
+        {/* Statistics */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            [
+              "Total Issues",
+              statistics.totalIssues,
+              "All reported civic issues",
+              "text-blue-600",
+            ],
+            [
+              "Pending Issues",
+              statistics.pendingIssues,
+              "Awaiting action",
+              "text-amber-600",
+            ],
+            [
+              "In Progress",
+              statistics.inProgress,
+              "Currently assigned",
+              "text-indigo-600",
+            ],
+            [
+              "Resolved Issues",
+              statistics.resolvedIssues,
+              "Successfully completed",
+              "text-emerald-600",
+            ],
+          ].map(([label, value, detail, color]) => (
+            <div
+              key={label}
+              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <p className="text-sm text-slate-500">{label}</p>
+              <h3 className={`mt-3 text-3xl font-bold ${color}`}>
+                {value}
+              </h3>
+              <p className="mt-2 text-xs text-slate-400">{detail}</p>
+            </div>
+          ))}
+        </section>
+
+        {/* Middle Section */}
+        <section className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Recent Issues */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6 lg:col-span-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900">
+                  Recent Civic Issues
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Latest reported citizen complaints
+                </p>
+              </div>
+
+              <Link
+                href="/issues"
+                className="text-sm font-semibold text-emerald-600 hover:text-emerald-700"
+              >
+                View all →
+              </Link>
+            </div>
+
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full min-w-[650px] text-left text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-slate-400">
+                    <th className="pb-3">ISSUE</th>
+                    <th className="pb-3">DEPARTMENT</th>
+                    <th className="pb-3">PRIORITY</th>
+                    <th className="pb-3">STATUS</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {recentIssues.map((issue) => (
+                    <tr
+                      key={issue.issue_id}
+                      className="border-b border-slate-100"
+                    >
+                      <td className="py-4">
+                        <p className="font-semibold text-slate-800">
+                          {issue.title}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          ISS-{String(issue.issue_id).padStart(3, "0")} ·{" "}
+                          {issue.location}
+                        </p>
+                      </td>
+
+                      <td className="py-4 text-xs text-slate-600">
+                        {issue.department_name}
+                      </td>
+
+                      <td className="py-4">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            priorityStyles[Number(issue.priority)] ||
+                            "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {priorityNames[Number(issue.priority)] ||
+                            `Priority ${issue.priority}`}
+                        </span>
+                      </td>
+
+                      <td className="py-4 text-xs font-medium text-indigo-600">
+                        {issue.status.replace("_", " ")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Resource Overview */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6">
+            <h3 className="font-bold text-slate-900">
+              Resource Overview
+            </h3>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Current availability of city resources
+            </p>
+
+            {resources.map((resource) => {
+              const percentage =
+                resource.total_quantity > 0
+                  ? Math.round(
+                      (resource.available_quantity /
+                        resource.total_quantity) *
+                        100
+                    )
+                  : 0;
+
+              return (
+                <div key={resource.resource_id} className="mt-6">
+                  <div className="mb-2 flex justify-between gap-2 text-sm">
+                    <span className="truncate text-slate-600">
+                      {resource.resource_name}
+                    </span>
+
+                    <span className="font-semibold">
+                      {percentage}%
+                    </span>
+                  </div>
+
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-emerald-500"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    {resource.available_quantity} of{" "}
+                    {resource.total_quantity} available
+                  </p>
+                </div>
+              );
+            })}
+
+            <Link
+              href="/resources"
+              className="mt-8 block w-full rounded-lg bg-slate-900 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700"
+            >
+              Manage Resources
+            </Link>
+          </div>
+        </section>
+
+        {/* Bottom Section */}
+        <section className="mt-8 rounded-xl bg-emerald-950 p-6 text-white">
+          <p className="text-sm font-semibold text-emerald-300">
+            SMART CITY RESOURCE ALLOCATION
+          </p>
+          <h3 className="mt-2 text-xl font-bold">
+            Better resources. Faster resolutions.
+          </h3>
+          <p className="mt-2 max-w-2xl text-sm text-emerald-100">
+            Track complaints, prioritize urgent civic issues and coordinate
+            departments to improve urban service delivery.
+          </p>
+        </section>
+
+        <footer className="mt-8 text-center text-xs text-slate-400">
+          Smart Urban Civic Issue and Resource Allocator © 2026
+        </footer>
       </main>
     </div>
   );
