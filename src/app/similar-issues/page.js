@@ -11,7 +11,6 @@ export default function SimilarIssuesPage() {
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
 
-  // Fetch all issues for the dropdown
   useEffect(() => {
     async function fetchIssues() {
       try {
@@ -34,7 +33,6 @@ export default function SimilarIssuesPage() {
     fetchIssues();
   }, []);
 
-  // Search for similar issues
   async function handleSearch() {
     if (!selectedIssue) {
       setMessage("Please select an issue first.");
@@ -72,10 +70,9 @@ export default function SimilarIssuesPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-5 md:p-10">
       <div className="mx-auto max-w-5xl">
-        {/* Header */}
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-600">
               Dashboard / Similar Issues
             </p>
 
@@ -83,27 +80,27 @@ export default function SimilarIssuesPage() {
               Similar Issues
             </h1>
 
-            <p className="mt-2 text-slate-500">
-              Find related civic issues using vector similarity search.
+            <p className="mt-2 text-slate-700">
+              Find related civic issues using pgvector similarity search.
             </p>
           </div>
 
           <Link
             href="/issues"
-            className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold text-slate-800 hover:bg-slate-50"
           >
             View All Issues
           </Link>
         </div>
 
-        {/* Search Section */}
         <section className="mb-8 rounded-xl bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-900">
             Search for Similar Issues
           </h2>
 
-          <p className="mt-2 text-sm text-slate-500">
-            Select a civic issue to find related issues using pgvector.
+          <p className="mt-2 text-sm text-slate-700">
+            Select a civic issue to find related issues using vector embeddings
+            and pgvector.
           </p>
 
           <div className="mt-6 flex flex-col gap-4 sm:flex-row">
@@ -135,54 +132,56 @@ export default function SimilarIssuesPage() {
           </div>
         </section>
 
-        {/* Results */}
         <section className="rounded-xl bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-slate-900">
-            Similar Issues
+            Similar Issues Found
           </h2>
 
-          <p className="mt-2 text-sm text-slate-500">
-            Similar civic issues found using vector similarity search.
+          <p className="mt-2 text-sm text-slate-700">
+            Related civic issues identified using similarity search.
           </p>
 
           {message && (
-            <div className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-amber-700">
+            <div className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
               {message}
             </div>
           )}
 
           {searching && (
-            <p className="mt-6 text-slate-500">
+            <p className="mt-6 text-slate-700">
               Searching for similar issues...
             </p>
           )}
 
           {!searching && similarIssues.length > 0 && (
             <div className="mt-6 space-y-4">
-              {similarIssues.map((issue) => (
+              {similarIssues.map((issue, index) => (
                 <div
                   key={issue.issue_id}
-                  className="rounded-xl border border-blue-100 bg-blue-50 p-5"
+                  className="rounded-xl border border-blue-200 bg-blue-50 p-5"
                 >
-                  <div className="flex flex-col justify-between gap-3 sm:flex-row">
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900">
-                        {issue.title}
-                      </h3>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="rounded-full bg-blue-600 px-3 py-1 text-sm font-bold text-white">
+                        #{index + 1} Match
+                      </span>
 
-                      <p className="mt-2 text-slate-600">
-                        {issue.location}
-                      </p>
-
-                      <p className="mt-3 text-slate-600">
-                        {issue.issue_description}
-                      </p>
-
-                      <p className="mt-4 text-sm font-medium text-blue-600">
-                        Issue ID: ISS-
-                        {String(issue.issue_id).padStart(3, "0")}
-                      </p>
+                      <span className="font-bold text-blue-700">
+                        ISS-{String(issue.issue_id).padStart(3, "0")}
+                      </span>
                     </div>
+
+                    <h3 className="mt-4 text-lg font-bold text-slate-900">
+                      {issue.title}
+                    </h3>
+
+                    <p className="mt-2 text-slate-800">
+                      Location: {issue.location}
+                    </p>
+
+                    <p className="mt-3 text-slate-800">
+                      {issue.issue_description}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -193,7 +192,7 @@ export default function SimilarIssuesPage() {
             !searching &&
             similarIssues.length === 0 &&
             !message && (
-              <div className="mt-8 rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-500">
+              <div className="mt-8 rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-700">
                 Select an issue above and click{" "}
                 <strong>Find Similar Issues</strong>.
               </div>

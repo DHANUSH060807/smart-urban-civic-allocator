@@ -2,9 +2,14 @@ import pool from "@/lib/db";
 
 export async function GET() {
   try {
-    // Total issues
+    // Summary counts
     const issuesResult = await pool.query(`
-      SELECT COUNT(*) AS total_issues
+      SELECT
+        COUNT(*) AS total_issues,
+        COUNT(*) FILTER (WHERE status = 'RESOLVED') AS resolved_issues,
+        COUNT(*) FILTER (
+          WHERE status NOT IN ('RESOLVED', 'REJECTED')
+        ) AS active_issues
       FROM issues
     `);
 
@@ -54,13 +59,20 @@ export async function GET() {
       ORDER BY priority
     `);
 
-    const totalIssues = Number(issuesResult.rows[0].total_issues);
+    const issueSummary = issuesResult.rows[0];
+
+    const totalIssues = Number(issueSummary.total_issues);
+    const resolvedIssues = Number(issueSummary.resolved_issues);
+    const activeIssues = Number(issueSummary.active_issues);
+
     const totalDepartments = Number(
       departmentsResult.rows[0].total_departments
     );
+
     const totalResources = Number(
       resourcesResult.rows[0].total_resources
     );
+
     const availableResources = Number(
       resourcesResult.rows[0].available_resources
     );
@@ -70,6 +82,8 @@ export async function GET() {
 
       summary: {
         totalIssues,
+        resolvedIssues,
+        activeIssues,
         totalDepartments,
         totalResources,
         availableResources,

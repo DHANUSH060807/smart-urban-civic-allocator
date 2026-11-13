@@ -1,4 +1,24 @@
 import pool from "@/lib/db";
+import jwt from "jsonwebtoken";
+
+function getAuthenticatedUser(request) {
+  const authorization = request.headers.get("authorization");
+
+  if (!authorization || !authorization.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authorization.substring(7);
+
+  try {
+    return jwt.verify(
+      token,
+      process.env.JWT_SECRET || "civicflow_demo_secret"
+    );
+  } catch (error) {
+    return null;
+  }
+}
 
 export async function GET() {
   try {
@@ -39,6 +59,28 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const user = getAuthenticatedUser(request);
+
+  if (!user) {
+    return Response.json(
+      {
+        success: false,
+        message: "Authentication token is required or invalid",
+      },
+      { status: 401 }
+    );
+  }
+
+  if (user.role !== "ADMIN") {
+    return Response.json(
+      {
+        success: false,
+        message: "Only administrators can allocate resources",
+      },
+      { status: 403 }
+    );
+  }
+
   const client = await pool.connect();
 
   try {
@@ -62,12 +104,32 @@ export async function POST(request) {
 
     await client.query("BEGIN");
 
-    // Check the available quantity of the selected resource
+    // Check whether the issue exists.
+    const issueResult = await client.query(
+      `SELECT issue_id FROM issues WHERE issue_id = $1`,
+      [Number(issue_id)]
+    );
+
+    if (issueResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return Response.json(
+        {
+          success: false,
+          message: "Selected issue was not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    // Lock the resource while checking its available quantity.
     const resourceResult = await client.query(
-      `SELECT resource_id, resource_name, available_quantity
-       FROM resources
-       WHERE resource_id = $1
-       FOR UPDATE`,
+      `
+        SELECT resource_id, resource_name, available_quantity
+        FROM resources
+        WHERE resource_id = $1
+        FOR UPDATE
+      `,
       [Number(resource_id)]
     );
 
@@ -77,16 +139,16 @@ export async function POST(request) {
       return Response.json(
         {
           success: false,
-          message: "Resource not found",
+          message: "Selected resource was not found",
         },
         { status: 404 }
       );
     }
 
     const resource = resourceResult.rows[0];
+    const requestedQuantity = Number(quantity);
 
-    // Prevent allocation if insufficient quantity is available
-    if (Number(resource.available_quantity) < Number(quantity)) {
+    if (Number(resource.available_quantity) < requestedQuantity) {
       await client.query("ROLLBACK");
 
       return Response.json(
@@ -98,25 +160,30 @@ export async function POST(request) {
       );
     }
 
-    // Create the allocation record
+    // Create the allocation using the currently logged-in administrator.
     const allocationResult = await client.query(
-      `INSERT INTO allocations
-        (issue_id, resource_id, allocated_by, quantity)
-       VALUES ($1, $2, 4, $3)
-       RETURNING *`,
+      `
+        INSERT INTO allocations
+          (issue_id, resource_id, allocated_by, quantity)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `,
       [
         Number(issue_id),
         Number(resource_id),
-        Number(quantity),
+        Number(user.user_id),
+        requestedQuantity,
       ]
     );
 
-    // Reduce the available quantity
+    // Reduce the available resource quantity.
     await client.query(
-      `UPDATE resources
-       SET available_quantity = available_quantity - $1
-       WHERE resource_id = $2`,
-      [Number(quantity), Number(resource_id)]
+      `
+        UPDATE resources
+        SET available_quantity = available_quantity - $1
+        WHERE resource_id = $2
+      `,
+      [requestedQuantity, Number(resource_id)]
     );
 
     await client.query("COMMIT");

@@ -11,7 +11,7 @@ export async function GET(request) {
           success: false,
           message: "Please provide an issueId",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -22,7 +22,7 @@ export async function GET(request) {
       FROM issue_embeddings
       WHERE issue_id = $1
       `,
-      [Number(issueId)],
+      [Number(issueId)]
     );
 
     if (selectedResult.rows.length === 0) {
@@ -31,29 +31,28 @@ export async function GET(request) {
           success: false,
           message: "No embedding found for this issue",
         },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
     const selectedEmbedding = selectedResult.rows[0].embedding;
 
-    // Find only genuinely similar issues
+    // Find genuinely similar issues using pgvector
     const result = await pool.query(
       `
       SELECT
         ie.issue_id,
         i.title,
         i.location,
-        ie.issue_description,
-        ie.embedding <-> $1::vector AS distance
+        ie.issue_description
       FROM issue_embeddings ie
       JOIN issues i ON ie.issue_id = i.issue_id
       WHERE ie.issue_id != $2
-        AND (ie.embedding <-> $1::vector) < 0.15
+        AND (ie.embedding <-> $1::vector) < 0.3
       ORDER BY ie.embedding <-> $1::vector
       LIMIT 5
       `,
-      [selectedEmbedding, Number(issueId)],
+      [selectedEmbedding, Number(issueId)]
     );
 
     return Response.json({
@@ -69,7 +68,7 @@ export async function GET(request) {
         success: false,
         message: "Could not search for similar issues",
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

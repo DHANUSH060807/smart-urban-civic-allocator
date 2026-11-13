@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function IssuesPage() {
+  const router = useRouter();
+
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState(null);
+  const [user, setUser] = useState(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -21,7 +25,41 @@ export default function IssuesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState("");
 
+  function getAuthData() {
+    const token = localStorage.getItem("civicflow_token");
+    const storedUser = localStorage.getItem("civicflow_user");
+
+    if (!token || !storedUser) {
+      return null;
+    }
+
+    try {
+      return {
+        token,
+        user: JSON.parse(storedUser),
+      };
+    } catch (error) {
+      console.error("Could not read login information:", error);
+      return null;
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("civicflow_token");
+    localStorage.removeItem("civicflow_user");
+    router.push("/login");
+  }
+
   useEffect(() => {
+    const authData = getAuthData();
+
+    if (!authData) {
+      router.push("/login");
+      return;
+    }
+
+    setUser(authData.user);
+
     async function fetchIssues() {
       try {
         const response = await fetch("/api/issues");
@@ -31,7 +69,7 @@ export default function IssuesPage() {
         }
 
         const data = await response.json();
-        setIssues(data.issues);
+        setIssues(data.issues || []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -40,12 +78,12 @@ export default function IssuesPage() {
     }
 
     fetchIssues();
-  }, []);
+  }, [router]);
 
   const getPriority = (priority) => {
-    if (priority === 5) return "Critical";
-    if (priority === 4) return "High";
-    if (priority === 3) return "Medium";
+    if (Number(priority) === 5) return "Critical";
+    if (Number(priority) === 4) return "High";
+    if (Number(priority) === 3) return "Medium";
     return "Low";
   };
 
@@ -55,12 +93,16 @@ export default function IssuesPage() {
       .toLowerCase()
       .replace(/\b\w/g, (char) => char.toUpperCase());
 
+  // Admin and Officer can update issue status
+  const canUpdateStatus =
+    user?.role === "ADMIN" || user?.role === "OFFICER";
+
   const activeIssues = issues.filter(
     (issue) => !["RESOLVED", "REJECTED"].includes(issue.status)
   ).length;
 
   const criticalIssues = issues.filter(
-    (issue) => issue.priority === 5
+    (issue) => Number(issue.priority) === 5
   ).length;
 
   const handleSubmit = async (e) => {
@@ -86,7 +128,7 @@ export default function IssuesPage() {
       const refreshResponse = await fetch("/api/issues");
       const refreshedData = await refreshResponse.json();
 
-      setIssues(refreshedData.issues);
+      setIssues(refreshedData.issues || []);
       setFormMessage("Issue reported successfully!");
 
       setFormData({
@@ -107,6 +149,11 @@ export default function IssuesPage() {
   };
 
   const handleStatusUpdate = async () => {
+    if (!canUpdateStatus) {
+      alert("You do not have permission to update issue status.");
+      return;
+    }
+
     try {
       const response = await fetch("/api/issues", {
         method: "PATCH",
@@ -140,7 +187,13 @@ export default function IssuesPage() {
   };
 
   const handleViewDetails = (issue) => {
-    setSelectedIssue(issue);
+    setSelectedIssue({ ...issue });
+  };
+
+  const handleAllocateResources = () => {
+    if (!selectedIssue) return;
+
+    router.push(`/allocations?issueId=${selectedIssue.issue_id}`);
   };
 
   const closeDetails = () => {
@@ -148,47 +201,70 @@ export default function IssuesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-5 md:p-10">
+    <div className="min-h-screen bg-slate-100 p-5 text-slate-950 md:p-10">
       <div className="mx-auto max-w-7xl">
 
-        {/* Header */}
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        {/* Page Header */}
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm text-slate-500">
-              Dashboard / Civic Issues
+            <p className="text-sm font-semibold text-slate-950">
+              {user?.role === "CITIZEN"
+                ? "Citizen Portal / Civic Issues"
+                : "Dashboard / Civic Issues"}
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">
-              Civic Issues
+
+            <h1 className="mt-2 text-3xl font-bold text-slate-950">
+              {user?.role === "CITIZEN"
+                ? "My Civic Issue Portal"
+                : "Civic Issues"}
             </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Monitor, track and manage reported city complaints.
+
+            <p className="mt-2 font-medium text-slate-900">
+              {user?.role === "CITIZEN"
+                ? "Report civic problems and track reported issues."
+                : "Monitor, track and manage reported city complaints."}
             </p>
+
+            {user && (
+              <p className="mt-3 font-semibold text-slate-950">
+                Logged in as: {user.full_name} ({user.role})
+              </p>
+            )}
           </div>
 
-          <button
-            onClick={() => setShowForm(true)}
-            className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            + Report New Issue
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setShowForm(true)}
+              className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              + Report New Issue
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="rounded-lg bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Issue Details */}
         {selectedIssue && (
-          <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+          <div className="mb-6 rounded-xl border border-slate-300 bg-white p-6 shadow-lg">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">
+                <h2 className="text-xl font-bold text-slate-950">
                   Issue Details
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm font-medium text-slate-900">
                   Complete information about the selected civic issue.
                 </p>
               </div>
 
               <button
                 onClick={closeDetails}
-                className="text-xl text-slate-500 hover:text-red-600"
+                className="text-xl font-bold text-slate-950 hover:text-red-600"
               >
                 ✕
               </button>
@@ -196,103 +272,144 @@ export default function IssuesPage() {
 
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
-                <p className="text-sm text-slate-500">Issue ID</p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-950">
+                  Issue ID
+                </p>
+                <p className="mt-1 font-semibold text-slate-950">
                   ISS-{String(selectedIssue.issue_id).padStart(3, "0")}
                 </p>
               </div>
 
               <div>
-                <p className="text-sm text-slate-500">Status</p>
+                <p className="text-sm font-semibold text-slate-950">
+                  Status
+                </p>
 
-                <select
-                  value={selectedIssue.status}
-                  onChange={(e) =>
-                    setSelectedIssue({
-                      ...selectedIssue,
-                      status: e.target.value,
-                    })
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900"
-                >
-                  <option value="REPORTED">Reported</option>
-                  <option value="VERIFIED">Verified</option>
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="RESOLVED">Resolved</option>
-                  <option value="REJECTED">Rejected</option>
-                </select>
+                {canUpdateStatus ? (
+                  <select
+                    value={selectedIssue.status}
+                    onChange={(e) =>
+                      setSelectedIssue({
+                        ...selectedIssue,
+                        status: e.target.value,
+                      })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-400 bg-white p-2 font-medium text-slate-950"
+                  >
+                    <option value="REPORTED">Reported</option>
+                    <option value="VERIFIED">Verified</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="RESOLVED">Resolved</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                ) : (
+                  <p className="mt-1 font-semibold text-blue-700">
+                    {getStatus(selectedIssue.status)}
+                  </p>
+                )}
               </div>
 
               <div>
-                <p className="text-sm text-slate-500">Title</p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-950">
+                  Title
+                </p>
+                <p className="mt-1 font-semibold text-slate-950">
                   {selectedIssue.title}
                 </p>
               </div>
 
               <div>
-                <p className="text-sm text-slate-500">Location</p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-950">
+                  Location
+                </p>
+                <p className="mt-1 font-semibold text-slate-950">
                   {selectedIssue.location}
                 </p>
               </div>
 
               <div>
-                <p className="text-sm text-slate-500">Category</p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-950">
+                  Category
+                </p>
+                <p className="mt-1 font-semibold text-slate-950">
                   {selectedIssue.category_name}
                 </p>
               </div>
 
               <div>
-                <p className="text-sm text-slate-500">Department</p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-950">
+                  Department
+                </p>
+                <p className="mt-1 font-semibold text-slate-950">
                   {selectedIssue.department_name}
                 </p>
               </div>
 
               <div>
-                <p className="text-sm text-slate-500">Priority</p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-950">
+                  Priority
+                </p>
+                <p className="mt-1 font-semibold text-slate-950">
                   {getPriority(selectedIssue.priority)}
                 </p>
               </div>
 
               <div>
-                <p className="text-sm text-slate-500">Description</p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-950">
+                  Description
+                </p>
+                <p className="mt-1 font-semibold text-slate-950">
                   {selectedIssue.description}
                 </p>
               </div>
             </div>
 
-            <div className="mt-6">
-              <button
-                onClick={handleStatusUpdate}
-                className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-              >
-                Update Status
-              </button>
+            {/* Role-Based Actions */}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {canUpdateStatus && (
+                <button
+                  onClick={handleStatusUpdate}
+                  className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                  Update Status
+                </button>
+              )}
+
+              {user?.role === "ADMIN" && (
+                <button
+                  onClick={handleAllocateResources}
+                  className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Allocate Resources
+                </button>
+              )}
             </div>
+
+            {!canUpdateStatus && (
+              <p className="mt-6 rounded-lg border border-blue-300 bg-blue-50 p-4 font-semibold text-blue-900">
+                Citizens can view the current status of reported issues.
+                Issue status updates are handled by authorized officers.
+              </p>
+            )}
           </div>
         )}
 
-        {/* Report New Issue Form */}
+        {/* Report Issue Form */}
         {showForm && (
-          <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-lg">
+          <div className="mb-6 rounded-xl border border-slate-300 bg-white p-6 shadow-lg">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">
+                <h2 className="text-xl font-bold text-slate-950">
                   Report New Issue
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm font-medium text-slate-900">
                   Enter the details of the civic complaint.
                 </p>
               </div>
 
               <button
                 onClick={() => setShowForm(false)}
-                className="text-xl text-slate-500 hover:text-red-600"
+                className="text-xl font-bold text-slate-950 hover:text-red-600"
               >
                 ✕
               </button>
@@ -300,10 +417,10 @@ export default function IssuesPage() {
 
             {formMessage && (
               <div
-                className={`mb-4 rounded-lg p-3 text-sm font-medium ${
+                className={`mb-4 rounded-lg p-3 text-sm font-semibold ${
                   formMessage.includes("successfully")
-                    ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-red-100 text-red-800"
                 }`}
               >
                 {formMessage}
@@ -315,7 +432,7 @@ export default function IssuesPage() {
               className="grid grid-cols-1 gap-4 md:grid-cols-2"
             >
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-semibold text-slate-950">
                   Issue Title
                 </label>
                 <input
@@ -328,13 +445,13 @@ export default function IssuesPage() {
                     })
                   }
                   placeholder="Enter issue title"
-                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 placeholder:text-slate-400"
+                  className="w-full rounded-lg border border-slate-400 bg-white p-3 text-slate-950"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-semibold text-slate-950">
                   Location
                 </label>
                 <input
@@ -347,13 +464,13 @@ export default function IssuesPage() {
                     })
                   }
                   placeholder="Enter location"
-                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 placeholder:text-slate-400"
+                  className="w-full rounded-lg border border-slate-400 bg-white p-3 text-slate-950"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-semibold text-slate-950">
                   Category
                 </label>
                 <select
@@ -364,7 +481,7 @@ export default function IssuesPage() {
                       category_id: e.target.value,
                     })
                   }
-                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900"
+                  className="w-full rounded-lg border border-slate-400 bg-white p-3 text-slate-950"
                 >
                   <option value="1">Pothole</option>
                   <option value="2">Garbage Accumulation</option>
@@ -374,7 +491,7 @@ export default function IssuesPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-semibold text-slate-950">
                   Department
                 </label>
                 <select
@@ -385,7 +502,7 @@ export default function IssuesPage() {
                       department_id: e.target.value,
                     })
                   }
-                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900"
+                  className="w-full rounded-lg border border-slate-400 bg-white p-3 text-slate-950"
                 >
                   <option value="1">Road Maintenance</option>
                   <option value="2">Sanitation</option>
@@ -395,7 +512,7 @@ export default function IssuesPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-semibold text-slate-950">
                   Priority
                 </label>
                 <select
@@ -406,7 +523,7 @@ export default function IssuesPage() {
                       priority: e.target.value,
                     })
                   }
-                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900"
+                  className="w-full rounded-lg border border-slate-400 bg-white p-3 text-slate-950"
                 >
                   <option value="1">Low</option>
                   <option value="2">Low</option>
@@ -417,7 +534,7 @@ export default function IssuesPage() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-semibold text-slate-950">
                   Description
                 </label>
                 <textarea
@@ -430,7 +547,7 @@ export default function IssuesPage() {
                   }
                   placeholder="Describe the civic issue..."
                   rows={4}
-                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 placeholder:text-slate-400"
+                  className="w-full rounded-lg border border-slate-400 bg-white p-3 text-slate-950"
                   required
                 />
               </div>
@@ -439,7 +556,7 @@ export default function IssuesPage() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-400 px-5 py-3 text-sm font-semibold text-slate-950"
                 >
                   Cancel
                 </button>
@@ -459,61 +576,67 @@ export default function IssuesPage() {
         {/* Statistics */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total Issues</p>
-            <p className="mt-2 text-3xl font-bold text-blue-600">
+            <p className="text-sm font-semibold text-slate-950">
+              Total Issues
+            </p>
+            <p className="mt-2 text-3xl font-bold text-blue-700">
               {issues.length}
             </p>
           </div>
 
           <div className="rounded-xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Active Issues</p>
-            <p className="mt-2 text-3xl font-bold text-amber-600">
+            <p className="text-sm font-semibold text-slate-950">
+              Active Issues
+            </p>
+            <p className="mt-2 text-3xl font-bold text-amber-700">
               {activeIssues}
             </p>
           </div>
 
           <div className="rounded-xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Critical Priority</p>
-            <p className="mt-2 text-3xl font-bold text-red-600">
+            <p className="text-sm font-semibold text-slate-950">
+              Critical Priority
+            </p>
+            <p className="mt-2 text-3xl font-bold text-red-700">
               {criticalIssues}
             </p>
           </div>
         </div>
 
         {/* Issues Table */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-300 bg-white p-5 shadow-sm">
           <div className="mb-5">
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-950">
               All Reported Issues
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm font-medium text-slate-900">
               Current civic complaints in the system.
             </p>
           </div>
 
           {loading && (
-            <p className="py-8 text-center text-slate-500">
+            <p className="py-8 text-center font-medium text-slate-950">
               Loading civic issues...
             </p>
           )}
 
           {error && (
-            <p className="py-8 text-center text-red-600">
+            <p className="py-8 text-center font-semibold text-red-700">
               {error}
             </p>
           )}
 
           {!loading && !error && issues.length === 0 && (
-            <p className="py-8 text-center text-slate-500">
+            <p className="py-8 text-center font-medium text-slate-950">
               No civic issues found.
             </p>
           )}
 
           {!loading && !error && issues.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[750px] text-left text-sm">
+              <table className="w-full min-w-[850px] text-left text-sm">
                 <thead>
-                  <tr className="border-b text-xs text-slate-400">
+                  <tr className="border-b border-slate-300 text-xs font-bold text-slate-950">
                     <th className="px-3 py-4">ISSUE DETAILS</th>
                     <th className="px-3 py-4">LOCATION</th>
                     <th className="px-3 py-4">DEPARTMENT</th>
@@ -527,43 +650,33 @@ export default function IssuesPage() {
                   {issues.map((issue) => (
                     <tr
                       key={issue.issue_id}
-                      className="border-b border-slate-100 hover:bg-slate-50"
+                      className="border-b border-slate-200 hover:bg-slate-50"
                     >
                       <td className="px-3 py-5">
-                        <p className="font-semibold text-slate-800">
+                        <p className="font-semibold text-slate-950">
                           {issue.title}
                         </p>
-                        <p className="mt-1 text-xs text-slate-400">
+                        <p className="mt-1 text-xs font-medium text-slate-700">
                           ISS-{String(issue.issue_id).padStart(3, "0")}
                         </p>
                       </td>
 
-                      <td className="px-3 py-5 text-slate-600">
+                      <td className="px-3 py-5 font-medium text-slate-950">
                         {issue.location}
                       </td>
 
-                      <td className="px-3 py-5 text-slate-600">
+                      <td className="px-3 py-5 font-medium text-slate-950">
                         {issue.department_name}
                       </td>
 
                       <td className="px-3 py-5">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            getPriority(issue.priority) === "Critical"
-                              ? "bg-red-100 text-red-700"
-                              : getPriority(issue.priority) === "High"
-                              ? "bg-orange-100 text-orange-700"
-                              : getPriority(issue.priority) === "Medium"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-950">
                           {getPriority(issue.priority)}
                         </span>
                       </td>
 
                       <td className="px-3 py-5">
-                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">
                           {getStatus(issue.status)}
                         </span>
                       </td>
@@ -571,7 +684,7 @@ export default function IssuesPage() {
                       <td className="px-3 py-5">
                         <button
                           onClick={() => handleViewDetails(issue)}
-                          className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+                          className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-950"
                         >
                           View Details
                         </button>
